@@ -45,16 +45,16 @@ typedef struct Instruction {
 }\
 
 typedef struct Chip_8 {
-    uint16_t  MEMORY[MAX_SIZE]; // 4086 bytes
-    uint16_t  STACK[MAX_STACK];    // 32 bytes
-    uint8_t   REGISTER_V[MAX_REGISTER]; // 16 bytes
-    uint8_t   FRAME_BUFFER[MAX_PIXELS];
-    uint8_t   KEYPAD[MAX_KEYPAD];
-    uint16_t  REGISTER_PC; // 2 bytes
-    uint16_t  REGISTER_I;     // 2 bytes
-    uint8_t   REGISTER_DELAY; // 1 byte
-    uint8_t   REGISTER_SOUND_TIMERS; // 1 bytes
-    uint8_t   REGISTER_SP; // 1 byte
+    uint8_t   MEMORY[MAX_SIZE];         // 4KB RAM
+    uint16_t  STACK[MAX_STACK];         // STACK 16 x 16-bit
+    uint8_t   REGISTER_V[MAX_REGISTER]; // 16 bytes register
+    uint8_t   FRAME_BUFFER[MAX_PIXELS]; // FRAME BUFFER
+    uint8_t   KEYPAD[MAX_KEYPAD];       // KEYCODE
+    uint16_t  REGISTER_PC;              // 16-bit REGISTER PROGRAM COUNTER
+    uint16_t  REGISTER_I;               // 16-bit REGISTER I
+    uint8_t   REGISTER_DELAY;           // 8-bit REGISTER DELAY TIMER
+    uint8_t   REGISTER_SOUND_TIMERS;    // 8-bit REGISTER SOUND TIMER
+    uint8_t   REGISTER_SP;              // 8-bit REGISTER STACK POINTER
 }Chip_8_t;
 
 void _chip_init_(Chip_8_t* cpu)
@@ -70,7 +70,7 @@ void _chip_init_(Chip_8_t* cpu)
     cpu->REGISTER_I            = 0;
     cpu->REGISTER_DELAY        = 0;
     cpu->REGISTER_SOUND_TIMERS = 0;
-    cpu->REGISTER_PC           = DEBUT_PROGRAM;
+    cpu->REGISTER_PC           = DEBUT_PROGRAM; // START OF ANY CODE
     cpu->REGISTER_SP           = 0;
 
     const uint8_t  FONT[MAX_FONT]  =  {
@@ -114,8 +114,8 @@ void _chip_process_ins(Chip_8_t* cpu, const uint16_t opcode)
     _chip_decode(opcode, &n);
 
     static uint16_t result ;
-    static uint8_t random_number;
-    static uint8_t result8_t;
+    static uint8_t  random_number;
+    static uint8_t  result8_t;
     
     switch (n.opcode_id)
     {
@@ -128,7 +128,7 @@ void _chip_process_ins(Chip_8_t* cpu, const uint16_t opcode)
             break;
 
         case 0x0EE: // RET
-            cpu->REGISTER_PC = cpu->STACK[cpu->REGISTER_SP];
+            cpu->REGISTER_PC  = cpu->STACK[cpu->REGISTER_SP];
             cpu->REGISTER_SP -= 1;
             break;
         
@@ -138,25 +138,25 @@ void _chip_process_ins(Chip_8_t* cpu, const uint16_t opcode)
         
         break;
     
-    case 0x1:
+    case 0x1: // JP NNN
         cpu->REGISTER_PC = n.NNN;
         break;
 
-    case 0x2:
-        cpu->REGISTER_SP += 1;
+    case 0x2: // CALL NNN
+        cpu->REGISTER_SP            += 1;
         cpu->STACK[cpu->REGISTER_SP] = cpu->REGISTER_PC;
-        cpu->REGISTER_PC = n.NNN;
+        cpu->REGISTER_PC             = n.NNN;
         break;
 
-    case 0x3:
+    case 0x3: // SE VX, byte
         cpu->REGISTER_PC = cpu->REGISTER_V[n.X] == n.NN ? cpu->REGISTER_PC + 2 : cpu->REGISTER_PC;
         break;
     
-    case 0x4:
+    case 0x4: // SNE VX, byte
         cpu->REGISTER_PC = cpu->REGISTER_V[n.X] != n.NN ? cpu->REGISTER_PC + 2 : cpu->REGISTER_PC;
         break;
 
-    case 0x5:
+    case 0x5: // SE VX, VY
         if(n.N == 0)
             cpu->REGISTER_PC = cpu->REGISTER_V[n.X] != cpu->REGISTER_V[n.Y] ? cpu->REGISTER_PC + 2 : cpu->REGISTER_PC;
         break;
@@ -189,39 +189,39 @@ void _chip_process_ins(Chip_8_t* cpu, const uint16_t opcode)
             break;
 
         case 0x4:
-            result = cpu->REGISTER_V[n.X] + cpu->REGISTER_V[n.Y];
+            result               = cpu->REGISTER_V[n.X] + cpu->REGISTER_V[n.Y];
             cpu->REGISTER_V[0xF] = result > 0xFF ? 1 : 0;
             cpu->REGISTER_V[n.X] = result & 0x0F;
             break;
 
         case 0x5:
             cpu->REGISTER_V[0xF] = cpu->REGISTER_V[n.X] > cpu->REGISTER_V[n.Y] ? 1 : 0;
-            result = cpu->REGISTER_V[n.X] - cpu->REGISTER_V[n.Y];
+            result               = cpu->REGISTER_V[n.X] - cpu->REGISTER_V[n.Y];
             cpu->REGISTER_V[n.X] = result & 0x0F;
             break;
 
         case 0x6:
             cpu->REGISTER_V[0xF] = cpu->REGISTER_V[n.X] & 0x01;
-            result = cpu->REGISTER_V[n.X] / 2;
+            result               = cpu->REGISTER_V[n.X] / 2;
             cpu->REGISTER_V[n.X] = result & 0x0F;
             break;
 
         case 0x7:
             cpu->REGISTER_V[0xF] = cpu->REGISTER_V[n.X] < cpu->REGISTER_V[n.Y];
-            result = cpu->REGISTER_V[n.Y] - cpu->REGISTER_V[n.X];
+            result               = cpu->REGISTER_V[n.Y] - cpu->REGISTER_V[n.X];
             cpu->REGISTER_V[n.X] = result & 0x0F;
             break;
 
         case 0xE:
             cpu->REGISTER_V[0xF] = (cpu->REGISTER_V[n.X] & 0x80) >> 7;
-            result = cpu->REGISTER_V[n.X] / 2;
+            result               = cpu->REGISTER_V[n.X] / 2;
             cpu->REGISTER_V[n.X] = result & 0x0F;            
             break;
 
         default:
             break;
         }
-        
+
         break;
 
     case 0x9:
@@ -230,16 +230,16 @@ void _chip_process_ins(Chip_8_t* cpu, const uint16_t opcode)
         break;
 
     case 0xA:
-        cpu->REGISTER_I = n.NNN;
+        cpu->REGISTER_I     = n.NNN;
         break;
 
     case 0xB:
-        cpu->REGISTER_PC = n.NNN + cpu->REGISTER_V[0x0];
+        cpu->REGISTER_PC    = n.NNN + cpu->REGISTER_V[0x0];
         break;
 
     case 0xC:
-        random_number = (uint8_t)rand() % 256;
-        result8_t = random_number & n.NN;
+        random_number        = (uint8_t)rand() % 256;
+        result8_t            = random_number & n.NN;
         cpu->REGISTER_V[n.X] = result8_t;
         break;
 
@@ -292,7 +292,7 @@ void _chip_process_ins(Chip_8_t* cpu, const uint16_t opcode)
             break;
 
         case 0x33:
-            cpu->MEMORY[cpu->REGISTER_I] = (cpu->REGISTER_V[n.X] & 0x04) >> 2;
+            cpu->MEMORY[cpu->REGISTER_I]     = (cpu->REGISTER_V[n.X] & 0x04) >> 2;
             cpu->MEMORY[cpu->REGISTER_I + 1] = (cpu->REGISTER_V[n.X] & 0x02) >> 1;
             cpu->MEMORY[cpu->REGISTER_I + 2] = (cpu->REGISTER_V[n.X] & 0x01);
             break;
