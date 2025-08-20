@@ -58,6 +58,7 @@ typedef struct Chip_8 {
     uint8_t        SOUND_TIMER;              // 8-bit REGISTER SOUND TIMER
     uint8_t        SP;                       // 8-bit REGISTER STACK POINTER
     Instruction_t  INS;                      // CURRENT INS
+    uint8_t        KEY_PRESSED               // STATUS : IF A KEY IS PRESSED
 }Chip_8_t;
 
 void _chip_init_(Chip_8_t* cpu)
@@ -83,6 +84,8 @@ void _chip_init_(Chip_8_t* cpu)
     cpu->INS.NNN       = 0;
     cpu->INS.NN        = 0;
     cpu->INS.N         = 0;
+
+    cpu->KEY_PRESSED   = 0;
 
     const uint8_t  FONT[MAX_FONT]  =  {
         0xF0, 0x90, 0x90, 0x90, 0xF0, // 0
@@ -121,6 +124,7 @@ void _chip_decode_opcode(const uint16_t _opcode, Instruction_t* nibles)
 
 void _fetch(Chip_8_t* cpu)
 {
+    // Little edian mode beceause of binary format
     const uint16_t  opcode = cpu->MEMORY[cpu->PC + 1] << 8 | cpu->MEMORY[cpu->PC];
     Instruction_t ins;
     _chip_decode_opcode(opcode, &ins);
@@ -348,7 +352,21 @@ void _chip_process_ins(Chip_8_t* cpu)
             break;
 
         case 0x0A:  // FX0A - LD VX, K
-            //TODO
+            
+            for(size_t key = 0; key < MAX_KEYPAD; ++key)
+            {
+                if(cpu->KEYPAD[key])
+                {
+                    cpu->V[n.X] = key;
+                    break;
+                }
+
+                if(!cpu->KEY_PRESSED)
+                {    
+                    cpu->PC -= 2;
+                    break;
+                }
+            }
             break;
 
         case 0x15:  // DXYN - DRW VX, VY, N
