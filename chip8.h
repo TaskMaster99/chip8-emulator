@@ -23,6 +23,7 @@ typedef double                  float64_t;
 #define MAX_KEYPAD              16
 
 typedef struct Instruction {
+    uint16_t opcode;
     uint8_t  opcode_id;
     uint8_t  X ;
     uint8_t  Y ;
@@ -35,43 +36,53 @@ typedef struct Instruction {
 #define DISPLAY_INSTRUCTION(INS){\
     printf("-------------\n");\
 \
-    printf("----ID : 0X%01X\n", INS.opcode_id);\
-    printf("----NNN : 0X%03X\n", INS.NNN);\
-    printf("----NN : 0X%02X\n", INS.NN);\
+    printf("----OPCODE  : 0X%01X\n", INS.opcode);\
+    printf("----ID      : 0X%01X\n", INS.opcode_id);\
+    printf("----NNN     : 0X%03X\n", INS.NNN);\
+    printf("----NN      : 0X%02X\n", INS.NN);\
 \
-    printf("----N : 0X%01X\n", INS.N);\
-    printf("----X : 0X%01X\n", INS.X);\
-    printf("----Y : 0X%01X\n", INS.Y);\
+    printf("----N       : 0X%01X\n", INS.N);\
+    printf("----X       : 0X%01X\n", INS.X);\
+    printf("----Y       : 0X%01X\n", INS.Y);\
 }\
 
 typedef struct Chip_8 {
-    uint8_t   MEMORY[MAX_SIZE];         // 4KB RAM
-    uint16_t  STACK[MAX_STACK];         // STACK 16 x 16-bit
-    uint8_t   V[MAX_REGISTER];          // 16 bytes register
-    uint8_t   FRAME_BUFFER[MAX_PIXELS]; // FRAME BUFFER
-    uint8_t   KEYPAD[MAX_KEYPAD];       // KEYCODE
-    uint16_t  PC;                       // 16-bit REGISTER PROGRAM COUNTER
-    uint16_t  INDEX;                    // 16-bit REGISTER INDEX
-    uint8_t   DELAY_TIMER;              // 8-bit REGISTER DELAY TIMER
-    uint8_t   SOUND_TIMER;              // 8-bit REGISTER SOUND TIMER
-    uint8_t   SP;                       // 8-bit REGISTER STACK POINTER
+    uint8_t        MEMORY[MAX_SIZE];         // 4KB RAM
+    uint16_t       STACK[MAX_STACK];         // STACK 16 x 16-bit
+    uint8_t        V[MAX_REGISTER];          // 16 bytes register
+    uint8_t        FRAME_BUFFER[MAX_PIXELS]; // FRAME BUFFER
+    uint8_t        KEYPAD[MAX_KEYPAD];       // KEYCODE
+    uint16_t       PC;                       // 16-bit REGISTER PROGRAM COUNTER
+    uint16_t       INDEX;                    // 16-bit REGISTER INDEX
+    uint8_t        DELAY_TIMER;              // 8-bit REGISTER DELAY TIMER
+    uint8_t        SOUND_TIMER;              // 8-bit REGISTER SOUND TIMER
+    uint8_t        SP;                       // 8-bit REGISTER STACK POINTER
+    Instruction_t  INS;                      // CURRENT INS
 }Chip_8_t;
 
 void _chip_init_(Chip_8_t* cpu)
 {
     srand(time(NULL));
 
-    memset(cpu->MEMORY, 0, MAX_SIZE * sizeof(uint16_t));
+    memset(cpu->MEMORY, 0, MAX_SIZE * sizeof(uint8_t));
     memset(cpu->STACK, 0, MAX_STACK * sizeof(uint16_t));
     memset(cpu->V, 0, MAX_REGISTER * sizeof(uint8_t));
     memset(cpu->FRAME_BUFFER, 0, MAX_PIXELS * sizeof(uint8_t));
     memset(cpu->KEYPAD, 0, MAX_KEYPAD * sizeof(uint8_t));
 
-    cpu->INDEX        = 0;
-    cpu->DELAY_TIMER  = 0;
-    cpu->SOUND_TIMER  = 0;
-    cpu->PC           = DEBUT_PROGRAM; // START OF ANY CODE
-    cpu->SP           = 0;
+    cpu->INDEX         = 0;
+    cpu->DELAY_TIMER   = 0;
+    cpu->SOUND_TIMER   = 0;
+    cpu->PC            = DEBUT_PROGRAM; // START OF ANY CODE
+    cpu->SP            = 0;
+
+    cpu->INS.opcode    = 0;
+    cpu->INS.opcode_id = 0;
+    cpu->INS.X         = 0;
+    cpu->INS.Y         = 0;
+    cpu->INS.NNN       = 0;
+    cpu->INS.NN        = 0;
+    cpu->INS.N         = 0;
 
     const uint8_t  FONT[MAX_FONT]  =  {
         0xF0, 0x90, 0x90, 0x90, 0xF0, // 0
@@ -95,27 +106,41 @@ void _chip_init_(Chip_8_t* cpu)
     memcpy(cpu->MEMORY, FONT, MAX_FONT * sizeof(uint8_t));
 }
 
-void _chip_decode(const uint16_t opcode, Instruction_t* nibles)
+void _chip_decode_opcode(const uint16_t _opcode, Instruction_t* nibles)
 {
     (*nibles) = (Instruction_t){
-        .opcode_id = (opcode & 0XF000) >> 12,
-        .X         = (opcode & 0X0F00) >> 8,
-        .Y         = (opcode & 0X00F0) >> 4,
-        .NNN       = (opcode & 0X0FFF),
-        .NN        = (opcode & 0X00FF) ,
-        .N         = (opcode & 0X000F)
+        .opcode    = _opcode,
+        .opcode_id = (_opcode & 0XF000) >> 12,
+        .X         = (_opcode & 0X0F00) >> 8,
+        .Y         = (_opcode & 0X00F0) >> 4,
+        .NNN       = (_opcode & 0X0FFF),
+        .NN        = (_opcode & 0X00FF) ,
+        .N         = (_opcode & 0X000F)
     };
 }
 
-void _chip_process_ins(Chip_8_t* cpu, const uint16_t opcode)
+void _fetch(Chip_8_t* cpu)
+{
+    const uint16_t  opcode = cpu->MEMORY[cpu->PC + 1] << 8 | cpu->MEMORY[cpu->PC];
+    Instruction_t ins;
+    _chip_decode_opcode(opcode, &ins);
+
+    cpu->INS = ins;
+
+    cpu->PC += 2;
+}
+
+void _chip_process_ins(Chip_8_t* cpu)
 {
     Instruction_t n;
 
-    _chip_decode(opcode, &n);
+    _fetch(cpu);
 
     static uint16_t result ;
     static uint8_t  random_number;
     static uint8_t  result8_t;
+
+    DISPLAY_INSTRUCTION(n);
     
     switch (n.opcode_id)
     {
@@ -123,13 +148,15 @@ void _chip_process_ins(Chip_8_t* cpu, const uint16_t opcode)
         
         switch (n.NNN)
         {
-        case 0x0E0: // CLS
+        case 0x0E0: // 00E0 - CLS
             memset(cpu->FRAME_BUFFER, 0, MAX_PIXELS * sizeof(uint8_t));
+            
             break;
 
-        case 0x0EE: // RET
+        case 0x0EE: // 00EE - RET
             cpu->PC  = cpu->STACK[cpu->SP];
             cpu->SP -= 1;
+            
             break;
         
         default:
@@ -138,84 +165,102 @@ void _chip_process_ins(Chip_8_t* cpu, const uint16_t opcode)
         
         break;
     
-    case 0x1: // JP NNN
+    case 0x1: // 1NNN - JP NNN
         cpu->PC = n.NNN;
+        
         break;
 
-    case 0x2: // CALL NNN
-        cpu->SP            += 1;
+    case 0x2: // 2NNN - CALL NNN
         cpu->STACK[cpu->SP] = cpu->PC;
+        cpu->SP            += 1;
         cpu->PC             = n.NNN;
+        
         break;
 
-    case 0x3: // SE VX, byte
+    case 0x3: // 3XNN - SE VX, NN(Byte)
         cpu->PC = cpu->V[n.X] == n.NN ? cpu->PC + 2 : cpu->PC;
+        
         break;
     
-    case 0x4: // SNE VX, byte
+    case 0x4: // 4XNN - SNE VX, NN(Byte)
         cpu->PC = cpu->V[n.X] != n.NN ? cpu->PC + 2 : cpu->PC;
+        
         break;
 
-    case 0x5: // SE VX, VY
-        if(n.N == 0)
+    case 0x5: 
+        if(n.N == 0) // 5XY0 - SE VX, VY
+        {    
             cpu->PC = cpu->V[n.X] != cpu->V[n.Y] ? cpu->PC + 2 : cpu->PC;
+            
+        }
         break;
 
-    case 0x6:
+    case 0x6: // 6XNN - LD VX, NN(Byte)
         cpu->V[n.X] = n.NN;
+        
         break;
     
-    case 0x7:
+    case 0x7: // 7XNN - ADD VX, NN(Byte)
         cpu->V[n.X] += n.NN;
+        
         break;
     
-    case 0x8:
+    case 0x8: 
         switch (n.N)
         {
-        case 0x0:
+        case 0x0: // 8XY0 - LD VX, VY
             cpu->V[n.X] = cpu->V[n.Y];
+            
             break;
-        case 0x1:
-        
+
+        case 0x1: // 8XY1 - LD VX, VY
             cpu->V[n.X] |= cpu->V[n.Y];
+            
             break;
 
-        case 0x2:
+        case 0x2: // 8XY2 - LD VX, VY
             cpu->V[n.X] &= cpu->V[n.Y];
+            
             break;
 
-        case 0x3:
+        case 0x3: // 8XY3 - LD VX, VY
             cpu->V[n.X] ^= cpu->V[n.Y];
+            
             break;
 
-        case 0x4:
-            result               = cpu->V[n.X] + cpu->V[n.Y];
+        case 0x4: // 8XY4 - LD VX, VY
+            result      = cpu->V[n.X] + cpu->V[n.Y];
             cpu->V[0xF] = result > 0xFF ? 1 : 0;
             cpu->V[n.X] = result & 0x0F;
+            
             break;
 
-        case 0x5:
+        case 0x5: // 8XY5 - LD VX, VY
             cpu->V[0xF] = cpu->V[n.X] > cpu->V[n.Y] ? 1 : 0;
             result               = cpu->V[n.X] - cpu->V[n.Y];
             cpu->V[n.X] = result & 0x0F;
+            
             break;
 
-        case 0x6:
+        case 0x6: // 8XY6 - LD VX, VY
             cpu->V[0xF] = cpu->V[n.X] & 0x01;
             result               = cpu->V[n.X] / 2;
             cpu->V[n.X] = result & 0x0F;
+            
             break;
 
-        case 0x7:
+        case 0x7: // 8XY7 - LD VX, VY
             cpu->V[0xF] = cpu->V[n.X] < cpu->V[n.Y];
             result               = cpu->V[n.Y] - cpu->V[n.X];
             cpu->V[n.X] = result & 0x0F;
+            
             break;
 
-        case 0xE:
+        case 0xE: // 8XYE - LD VX, VY
             cpu->V[0xF] = (cpu->V[n.X] & 0x80) >> 7;
             result               = cpu->V[n.X] / 2;
-            cpu->V[n.X] = result & 0x0F;            
+            cpu->V[n.X] = result & 0x0F;      
+                  
             break;
 
         default:
@@ -225,25 +270,31 @@ void _chip_process_ins(Chip_8_t* cpu, const uint16_t opcode)
         break;
 
     case 0x9:
-        if(n.N == 0)
+        if(n.N == 0) // 9XY0 - SNE VX, VY
+        {    
             cpu->PC = cpu->V[n.X] != cpu->V[n.Y] ? cpu->PC + 2 : cpu->PC;
+            
+        }
         break;
 
-    case 0xA:
+    case 0xA:  // ANNN - LD I, NNN
         cpu->INDEX     = n.NNN;
+        
         break;
 
-    case 0xB:
-        cpu->PC    = n.NNN + cpu->V[0x0];
+    case 0xB:  // BNNN - JMP V0, NNN
+        cpu->PC    = cpu->V[0x0] + n.NNN;
+        
         break;
 
-    case 0xC:
+    case 0xC:  // CXNN - RND VX, NN
         random_number        = (uint8_t)rand() % 256;
         result8_t            = random_number & n.NN;
         cpu->V[n.X] = result8_t;
+        
         break;
 
-    case 0xD:
+    case 0xD:  // DXYN - DRW VX, VY, N
         cpu->V[0xF] = 0;
         uint8_t xPos = cpu->V[n.X] & 63;
         uint8_t yPos = cpu->V[n.Y] & 31;
@@ -268,16 +319,17 @@ void _chip_process_ins(Chip_8_t* cpu, const uint16_t opcode)
                 if(yPos >= 32)
                     break;
         }
+        
         break;
 
     case 0xE:
         switch (n.NN)
         {
-        case 0x9E:
+        case 0x9E:  // EX9E - SKP VX
             cpu->PC = cpu->KEYPAD[cpu->V[n.X]] ? cpu->PC + 2 : cpu->PC;
             break;
 
-        case 0xA1:
+        case 0xA1:  // EXA1 - SKNP VX
             cpu->PC = !cpu->KEYPAD[cpu->V[n.X]] ? cpu->PC + 2 : cpu->PC;
             break;
 
@@ -290,46 +342,53 @@ void _chip_process_ins(Chip_8_t* cpu, const uint16_t opcode)
     case 0xF:
         switch (n.NN)
         {
-        case 0x07:
+        case 0x07:  // FX07 - LD VX, VY, DT
             cpu->V[n.X] = cpu->DELAY_TIMER;
+            
             break;
 
-        case 0x0A:
+        case 0x0A:  // FX0A - LD VX, K
             //TODO
             break;
 
-        case 0x15:
+        case 0x15:  // DXYN - DRW VX, VY, N
             cpu->DELAY_TIMER = cpu->V[n.X];
+            
             break;
 
-        case 0x18:
+        case 0x18:  // DXYN - DRW VX, VY, N
             cpu->SOUND_TIMER = cpu->V[n.X];
+            
             break;
 
-        case 0x1E:
-            cpu->INDEX += cpu->V[n.X]; 
+        case 0x1E:  // DXYN - DRW VX, VY, N
+            cpu->INDEX += cpu->V[n.X];
+            
             break;
 
-        case 0x29:
+        case 0x29:  // DXYN - DRW VX, VY, N
             cpu->INDEX = cpu->MEMORY[cpu->V[n.X] * 5];
+            
             break;
 
-        case 0x33:
+        case 0x33:  // DXYN - DRW VX, VY, N
             cpu->MEMORY[cpu->INDEX]     = (cpu->V[n.X] & 0x04) >> 2;
             cpu->MEMORY[cpu->INDEX + 1] = (cpu->V[n.X] & 0x02) >> 1;
             cpu->MEMORY[cpu->INDEX + 2] = (cpu->V[n.X] & 0x01);
+            
             break;
 
         case 0x55: // LD [I], VX
             memcpy(cpu->MEMORY + cpu->INDEX, cpu->V, (n.X +1)* sizeof(uint8_t));
+            
             break;
 
         case 0x65: // LD VX, [1]
             memcpy(cpu->V, cpu->MEMORY + cpu->INDEX, (n.X +1) * sizeof(uint8_t));
+            
             break;
 
         default:
-            
             break;
         }
         break;
