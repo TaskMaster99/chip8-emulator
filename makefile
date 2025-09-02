@@ -1,6 +1,6 @@
 
-OUT = out/main.o out/chip8.o out/instruction_config.o  out/instruction.o 
-SRC = main.c src/chip8.c src/instruction_config.c src/instruction.c
+OUT = out/main.o out/architecture.o out/instruction_config.o  out/instruction.o out/graphic.o
+SRC = main.c src/architecture.c src/instruction_config.c src/instruction.c src/graphic.c
 LIB = -lSDL2
 
 test : ${OUT}

@@ -2,12 +2,12 @@
 
 void(*INSTRUCTION_SET[INSTRUCTION_SET_SIZE])(Chip8_t*);
 
-
-void Chip8_load_instruction()
+void chip8_load_instruction()
 {
 
     memset(INSTRUCTION_SET, 0, sizeof(INSTRUCTION_SET));
 
+    INSTRUCTION_SET[0x0000] = Instruction_0NNN_SYS;
     INSTRUCTION_SET[0x00E0] = Instruction_00E0_CLS;
     INSTRUCTION_SET[0x00EE] = Instruction_00EE_RET;
     
@@ -51,19 +51,24 @@ void Chip8_load_instruction()
 
 }
 
-void Chip8_init(Chip8_t* c)
+void chip8_init(Chip8_t* c)
 {
+    srand(time(NULL));
+
     memset(c->RAM, 0, MEMORY_SIZE);
     memset(c->V, 0, MAX_VALUE);
     memset(c->KEYBOARD, 0, MAX_VALUE);
-    memset(c->STACK, 0, MAX_VALUE);
+    memset(c->STACK, 0, sizeof(c->STACK));
+    memset(c->PIXELS, 0, RESOLUTION);
 
     c->I           = 0;
     c->SOUND_TIMER = 0;
     c->DELAY_TIMER = 0;
     c->PC          = START_PROGRAM;
     c->SP          = 0;
-
+    c->KEY_PRESSED = 0;
+    c->EXTENTION   = CHIP8;
+    
     const uint8_t fonts[5 * 16] = {
         0xF0, 0x90, 0x90, 0x90, 0xF0, // 0
         0x20, 0x60, 0x20, 0x20, 0x70, // 1
@@ -89,7 +94,7 @@ void Chip8_init(Chip8_t* c)
 
 }
 
-void Chip8_load_rom(Chip8_t* c, const char* filepath)
+void chip8_load_rom(Chip8_t* c, const char* filepath)
 {
     FILE* file = fopen(filepath, "rb");
 
@@ -110,14 +115,13 @@ void Chip8_load_rom(Chip8_t* c, const char* filepath)
     long byte_read = fread(c->RAM + c->PC, sizeof(uint8_t), byte_count, file);
     
     if(byte_count != byte_read)
-    {
         fprintf(stderr, "Failed to read ROM : %s.\n", filepath);
-        return;
-    }
+
+    fclose(file);
 
 }
 
-void Chip8_fetch(Chip8_t* c)
+void chip8_fetch(Chip8_t* c)
 {
     const uint16_t opcode = c->RAM[c->PC] << 8 | c->RAM[c->PC + 1];
 
@@ -126,18 +130,25 @@ void Chip8_fetch(Chip8_t* c)
     c->PC += 2;
 }
 
-void Chip8_decode(Chip8_t* c, uint16_t* index)
+void chip8_decode(Chip8_t* c, uint16_t* index)
 {
-    *index = BIT_MAP[c->CURRENT_INSTRUCTION.ID].ID << 8 |(c->CURRENT_INSTRUCTION.NNN & BIT_MAP[c->CURRENT_INSTRUCTION.ID].REMAINDER);
+    uint16_t INDEX = 0;
+    INDEX = BIT_MAP[_ID].INDEX << 12 |(_NNN & BIT_MAP[_ID].OFFSET);
+
+    if( _ID == 0 && _NNN != 0xE0 && _NNN != 0xEE )
+        INDEX = 0;
+
+    *index = INDEX;
+
 }
 
-void Chip8_process_instruction(Chip8_t* c)
+void chip8_process_instruction(Chip8_t* c)
 {
     Chip8_fetch(c);
-    uint16_t index = c->CURRENT_INSTRUCTION.ID;
+    uint16_t index = _ID;
 
     Chip8_decode(c, &index);
 
-    INSTRUCTION_SET[index](c);
     
+    INSTRUCTION_SET[index](c);
 }

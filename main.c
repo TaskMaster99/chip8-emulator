@@ -7,6 +7,12 @@ int main(int argc, char** argv)
 
     Chip8_t cpu;
     Chip8_init(&cpu);
-    Chip8_load_rom(&cpu, "ROM/1-chip8-logo.ch8");
+    Chip8_load_rom(&cpu, "ROM/c8games/TETRIS");
+
+    Rendering screen;
+
+    render_init(&screen);
+    loop(&screen, &cpu);
+    clear_render(&screen);
 
 }
